@@ -25,11 +25,11 @@ import java.time.Instant;
 import java.util.*;
 
 import static es.in2.desmos.api.util.ApplicationUtils.calculateSHA256Hash;
+import static org.junit.Assert.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
@@ -44,8 +44,8 @@ class NotificationProcessorServiceTests {
             .entityHash("testHash")
             .status(TransactionStatus.PUBLISHED)
             .trader(TransactionTrader.CONSUMER)
-            .hash("testHash")
-            .dataLocation("testLocation")
+            .entityHash("testHash")
+            .datalocation("testLocation?hl=testHash")
             .build();
 
     private final Mono<Transaction> emptyTransaction = Mono.empty().cast(Transaction.class);
@@ -53,7 +53,7 @@ class NotificationProcessorServiceTests {
     @Mock
     ObjectWriter objectWriter;
     private BlockchainNotification blockchainNotification = BlockchainNotification.builder()
-            .dataLocation("testLocation")
+            .dataLocation("http://scorpio:9090/ngsi-ld/v1/entities/urn:ngsi-ld:product-offering:9?hl=0xb0a5c22d46e83a3c5633460214254952019022db09251a858975d16548164ae8")
             .build();
     private BrokerNotification brokerNotification = BrokerNotification.builder()
             .data(List.of(Map.of("id", "testId")))
@@ -62,8 +62,40 @@ class NotificationProcessorServiceTests {
     private ObjectMapper objectMapper;
     @Mock
     private TransactionService transactionService;
+
+    @Mock
+    private QueueService brokerToBlockchainQueueService;
+
+
     @InjectMocks
     private NotificationProcessorServiceImpl notificationProcessorService;
+
+    @Test
+    void detectBrokerNotificationPriorityWithNewPublication() {
+
+        when(transactionService.findLatestPublishedOrDeletedTransactionForEntity(anyString(), anyString()))
+                .thenReturn(Mono.empty());
+
+        when(brokerToBlockchainQueueService.enqueueEvent(any(EventQueue.class)))
+                .thenReturn(Mono.empty());
+
+        StepVerifier.create(notificationProcessorService.detectBrokerNotificationPriority("processId", brokerNotification))
+                .verifyComplete();
+
+        verify(transactionService).findLatestPublishedOrDeletedTransactionForEntity(anyString(), anyString());
+        verify(brokerToBlockchainQueueService).enqueueEvent(any(EventQueue.class));
+    }
+
+    @Test
+    void detectBlockchainNotificationPriorityWithEdit() {
+
+        when(brokerToBlockchainQueueService.enqueueEvent(any(EventQueue.class)))
+                .thenReturn(Mono.empty());
+
+        StepVerifier.create(notificationProcessorService.detectBlockchainNotificationPriority("processId", blockchainNotification))
+                .verifyComplete();
+    }
+
 
     @Test
     void processBrokerNotification_ValidData() throws JsonProcessingException {

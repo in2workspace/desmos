@@ -16,7 +16,7 @@ class EventQueueTest {
                 .priority(EventQueuePriority.SYNCHRONIZATION)
                 .build();
         EventQueue lowPriorityEvent = EventQueue.builder()
-                .priority(EventQueuePriority.PUBLICATION)
+                .priority(EventQueuePriority.PUBLICATION_PUBLISH)
                 .build();
 
         assertTrue(highPriorityEvent.compareTo(lowPriorityEvent) < 0, "High priority should be 'less' than low priority");
@@ -25,7 +25,7 @@ class EventQueueTest {
     @Test
     void compareToShouldReturnPositiveWhenThisHasLowerPriority() {
         EventQueue lowPriorityEvent = EventQueue.builder()
-                .priority(EventQueuePriority.PUBLICATION)
+                .priority(EventQueuePriority.PUBLICATION_PUBLISH)
                 .build();
         EventQueue highPriorityEvent = EventQueue.builder()
                 .priority(EventQueuePriority.SYNCHRONIZATION)
@@ -37,10 +37,10 @@ class EventQueueTest {
     @Test
     void compareToShouldReturnZeroWhenPrioritiesAreEqual() {
         EventQueue firstMediumPriorityEvent = EventQueue.builder()
-                .priority(EventQueuePriority.PUBLICATION)
+                .priority(EventQueuePriority.PUBLICATION_PUBLISH)
                 .build();
         EventQueue secondMediumPriorityEvent = EventQueue.builder()
-                .priority(EventQueuePriority.PUBLICATION)
+                .priority(EventQueuePriority.PUBLICATION_PUBLISH)
                 .build();
 
         assertEquals(0, firstMediumPriorityEvent.compareTo(secondMediumPriorityEvent), "Equal priorities should result in " +
@@ -72,7 +72,7 @@ class EventQueueTest {
     @Test
     void testSetEvent() {
         // Arrange
-        EventQueue eventQueue = new EventQueue();
+        EventQueue eventQueue = EventQueue.builder().build();
         List<Object> event = Arrays.asList("event1", "event2");
 
         // Act
@@ -85,8 +85,8 @@ class EventQueueTest {
     @Test
     void testSetPriority() {
         // Arrange
-        EventQueue eventQueue = new EventQueue();
-        EventQueuePriority priority = EventQueuePriority.PUBLICATION;
+        EventQueue eventQueue = EventQueue.builder().build();
+        EventQueuePriority priority = EventQueuePriority.SYNCHRONIZATION;
 
         // Act
         eventQueue.setPriority(priority);
@@ -98,8 +98,8 @@ class EventQueueTest {
     @Test
     void testCanEqual() {
         // Arrange
-        EventQueue eventQueue1 = new EventQueue();
-        EventQueue eventQueue2 = new EventQueue();
+        EventQueue eventQueue1 = EventQueue.builder().build();
+        EventQueue eventQueue2 = EventQueue.builder().build();
 
         // Assert
         assertTrue(eventQueue1.canEqual(eventQueue2), "Expected canEqual to return true");

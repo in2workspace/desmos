@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import es.in2.desmos.api.exception.BrokerNotificationParserException;
 import es.in2.desmos.api.model.*;
 import es.in2.desmos.api.service.NotificationProcessorService;
+import es.in2.desmos.api.service.QueueService;
 import es.in2.desmos.api.service.TransactionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -14,11 +15,9 @@ import reactor.core.publisher.Mono;
 import java.security.NoSuchAlgorithmException;
 import java.sql.Timestamp;
 import java.time.Instant;
-import java.util.Map;
-import java.util.Optional;
-import java.util.UUID;
+import java.util.*;
 
-import static es.in2.desmos.api.util.ApplicationUtils.calculateSHA256Hash;
+import static es.in2.desmos.api.util.ApplicationUtils.*;
 
 @Slf4j
 @Service
@@ -27,6 +26,40 @@ public class NotificationProcessorServiceImpl implements NotificationProcessorSe
 
     private final ObjectMapper objectMapper;
     private final TransactionService transactionService;
+    private final QueueService brokerToBlockchainQueueService;
+    private final QueueService blockchainToBrokerQueueService;
+
+    @Override
+    public Mono<Void> detectBrokerNotificationPriority(String processId, BrokerNotification brokerNotification) {
+        return validateBrokerNotification(brokerNotification)
+                .flatMap(dataMap -> {
+                    if (dataMap.containsKey("deletedAt")) {
+                        return Mono.just(EventQueuePriority.PUBLICATION_DELETE);
+                    } else {
+                        return transactionService.findLatestPublishedOrDeletedTransactionForEntity(processId,
+                                dataMap.get("id").toString()).flatMap(transaction -> Mono.just(EventQueuePriority.PUBLICATION_EDIT)).defaultIfEmpty(EventQueuePriority.PUBLICATION_PUBLISH);
+                    }
+                }).flatMap(eventQueuePriority -> brokerToBlockchainQueueService.enqueueEvent(EventQueue.builder()
+                        .event(Collections.singletonList(brokerNotification))
+                        .priority(eventQueuePriority)
+                        .build())).then();
+    }
+
+    @Override
+    public Mono<Void> detectBlockchainNotificationPriority(String processId, BlockchainNotification blockchainNotification) {
+        checkIfNotificationIsNullOrDataLocationIsEmpty(blockchainNotification);
+        EventQueuePriority eventQueuePriority = EventQueuePriority.PUBLICATION_PUBLISH;
+        if (!hasHlParameter(blockchainNotification.dataLocation())) {
+            eventQueuePriority = EventQueuePriority.PUBLICATION_DELETE;
+        } else if (!Objects.equals(blockchainNotification.previousEntityHash(),
+                "0x0000000000000000000000000000000000000000000000000000000000000000")) {
+            eventQueuePriority = EventQueuePriority.PUBLICATION_EDIT;
+        }
+        return blockchainToBrokerQueueService.enqueueEvent(EventQueue.builder()
+                .event(Collections.singletonList(blockchainNotification))
+                .priority(eventQueuePriority)
+                .build()).then();
+    }
 
     @Override
     public Mono<Map<String, Object>> processBrokerNotification(String processId, BrokerNotification brokerNotification) {
@@ -66,11 +99,12 @@ public class NotificationProcessorServiceImpl implements NotificationProcessorSe
                         log.debug("ProcessID: {} - No transaction found; assuming BrokerNotification is from external source", processId);
                         return Mono.just(dataMap);
                     }
-
                     Transaction transactionFound = optionalTransaction.get();
                     try {
                         String brokerEntityAsString = objectMapper.writer().writeValueAsString(dataMap);
                         String brokerEntityHash = calculateSHA256Hash(brokerEntityAsString);
+                        log.debug("ProcessID: {} - BrokerNotification entityHash: {}", processId, brokerEntityHash);
+                        log.debug("ProcessID: {} - BrokerNotification previousEntityHash: {}", processId, transactionFound.getEntityHash());
                         if (transactionFound.getEntityHash().equals(brokerEntityHash)) {
                             log.debug("ProcessID: {} - BrokerNotification is self-generated", processId);
                             return Mono.empty();
@@ -84,24 +118,23 @@ public class NotificationProcessorServiceImpl implements NotificationProcessorSe
                 });
     }
 
-
     @Override
     public Mono<Void> processBlockchainNotification(String processId, BlockchainNotification blockchainNotification) {
         // Validate input
         checkIfNotificationIsNullOrDataLocationIsEmpty(blockchainNotification);
         // Build and save transaction
         return transactionService.saveTransaction(processId, Transaction.builder()
-                        .id(UUID.randomUUID())
-                        .transactionId(processId)
-                        .createdAt(Timestamp.from(Instant.now()))
-                        .dataLocation(blockchainNotification.dataLocation())
-                        .entityId("")
-                        .entityType(blockchainNotification.eventType())
-                        .entityHash("")
-                        .status(TransactionStatus.RECEIVED)
-                        .trader(TransactionTrader.CONSUMER)
-                        .newTransaction(true)
-                        .build());
+                .id(UUID.randomUUID())
+                .transactionId(processId)
+                .createdAt(Timestamp.from(Instant.now()))
+                .datalocation(blockchainNotification.dataLocation())
+                .entityId(extractEntityIdFromDataLocation(blockchainNotification.dataLocation()))
+                .entityType(blockchainNotification.eventType())
+                .entityHash(extractEntityHashFromDataLocation(blockchainNotification.dataLocation()))
+                .status(TransactionStatus.RECEIVED)
+                .trader(TransactionTrader.CONSUMER)
+                .newTransaction(true)
+                .build());
     }
 
     private void checkIfNotificationIsNullOrDataLocationIsEmpty(BlockchainNotification blockchainNotification) {

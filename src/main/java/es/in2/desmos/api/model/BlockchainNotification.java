@@ -15,7 +15,8 @@ public record BlockchainNotification(
         @JsonProperty("timestamp") long timestamp,
         @JsonProperty("dataLocation") String dataLocation,
         @JsonProperty("relevantMetadata") List<String> relevantMetadata,
-        @JsonProperty("entityId") String entityId,
+        @JsonProperty("entityIDHash") String entityId,
         @JsonProperty("previousEntityHash") String previousEntityHash
 ) {
+
 }

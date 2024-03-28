@@ -3,7 +3,6 @@ package es.in2.desmos.broker.adapter;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-
 import es.in2.desmos.api.exception.JsonReadingException;
 import es.in2.desmos.api.exception.SubscriptionCreationException;
 import es.in2.desmos.broker.config.properties.BrokerProperties;
@@ -25,7 +24,6 @@ import java.util.Objects;
 import java.util.Optional;
 
 import static es.in2.desmos.api.util.MessageUtils.*;
-
 
 @Slf4j
 @Component
@@ -50,7 +48,8 @@ public class ScorpioAdapter implements GenericBrokerService {
                 .contentType(mediaType)
                 .bodyValue(requestBody)
                 .retrieve()
-                .bodyToMono(Void.class);
+                .bodyToMono(Void.class)
+                .retry(3);
     }
 
     @Override
@@ -65,7 +64,8 @@ public class ScorpioAdapter implements GenericBrokerService {
                         + "&attrs")
                 .accept(MediaType.APPLICATION_JSON)
                 .retrieve()
-                .bodyToFlux(String.class);
+                .bodyToFlux(String.class)
+                .retry(3);
     }
 
 
@@ -89,7 +89,8 @@ public class ScorpioAdapter implements GenericBrokerService {
                             .contentType(mediaType)
                             .bodyValue(requestBody)
                             .retrieve()
-                            .bodyToMono(Void.class);
+                            .bodyToMono(Void.class)
+                            .retry(3);
                 })
                 .doOnSuccess(result -> log.info(RESOURCE_UPDATED_MESSAGE, processId))
                 .doOnError(e -> log.error(ERROR_UPDATING_RESOURCE_MESSAGE, e.getMessage()));
@@ -101,7 +102,8 @@ public class ScorpioAdapter implements GenericBrokerService {
                 .uri(brokerProperties.paths().entities() + "/" + entityId)
                 .accept(MediaType.APPLICATION_JSON)
                 .retrieve()
-                .bodyToMono(Void.class);
+                .bodyToMono(Void.class)
+                .retry(3);
     }
 
     @Override

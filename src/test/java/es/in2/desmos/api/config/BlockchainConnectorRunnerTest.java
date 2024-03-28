@@ -19,6 +19,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.springframework.http.MediaType;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.reactive.function.client.WebClient;
@@ -34,7 +35,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(SpringExtension.class)
-class BlockchainConnectorInitializerTest {
+class BlockchainConnectorRunnerTest {
 
     @Mock
     private TransactionService transactionService;
@@ -76,14 +77,14 @@ class BlockchainConnectorInitializerTest {
     private WebClient.ResponseSpec responseSpecMock;
 
     @InjectMocks
-    private BlockchainConnectorInitializer blockchainConnectorInitializer;
+    private BlockchainConnectorRunner blockchainConnectorRunner;
 
     @BeforeEach
     void setUp() {
         // Corrected to include all dependencies
         DLTAdapterProperties = new DLTAdapterProperties("http://localhost:8080", "http://localhost:8080", "http" +
                 "://localhost:8080", new DLTAdapterPathProperties("/configureNode", "/publish", "/subscribe"));
-        blockchainConnectorInitializer = new BlockchainConnectorInitializer(transactionService, DLTAdapterProperties,
+        blockchainConnectorRunner = new BlockchainConnectorRunner(transactionService, DLTAdapterProperties,
                 DLTAdapterEventPublisher, new ObjectMapper(), brokerToBlockchainDataSyncPublisher,
                 brokerToBlockchainPublisher, blockchainToBrokerSynchronizer, blockchainToBrokerDataSyncSynchronizer,
                 brokerPublicationService);
@@ -98,7 +99,7 @@ class BlockchainConnectorInitializerTest {
         when(objectMapper.readTree(json)).thenReturn(rootNode);
 
         //When
-        List<String> actualIds = blockchainConnectorInitializer.extractIdsBasedOnPosition(json);
+        List<String> actualIds = blockchainConnectorRunner.extractIdsBasedOnPosition(json);
 
 
         //Then
@@ -112,24 +113,23 @@ class BlockchainConnectorInitializerTest {
         Transaction lastTransactionPublished = Transaction.builder()
                 .transactionId("e1e07f6d-e8e7-48ae-bb4d-afab5b63c1f5")
                 .createdAt(Timestamp.from(Instant.now()))
-                .dataLocation("https://domain.org/ngsi-ld/v1/entities/urn:ngsi-ld:Entity:1234")
+                .datalocation("https://domain.org/ngsi-ld/v1/entities/urn:ngsi-ld:Entity:1234")
                 .entityId("urn:ngsi-ld:Entity:1234")
                 .entityType("Entity")
                 .entityHash("0x1234")
                 .status(TransactionStatus.PUBLISHED)
                 .trader(TransactionTrader.CONSUMER)
-                .hash("0x9876")
+                .entityHash("0x9876")
                 .build(); // Populate this as needed
         Transaction lastTransactionCreated = Transaction.builder()
                 .transactionId("e1e07f6d-e8e7-48ae-bb4d-afab5b63c1f6")
                 .createdAt(Timestamp.from(Instant.now()))
-                .dataLocation("https://domain.org/ngsi-ld/v1/entities/urn:ngsi-ld:Entity:12345")
+                .datalocation("https://domain.org/ngsi-ld/v1/entities/urn:ngsi-ld:Entity:12345")
                 .entityId("urn:ngsi-ld:Entity:12345")
                 .entityType("Entity")
                 .entityHash("0x1235")
                 .status(TransactionStatus.CREATED)
                 .trader(TransactionTrader.CONSUMER)
-                .hash("0x9876")
                 .build();
         lastTransactionPublished.setCreatedAt(Timestamp.valueOf("2024-02-06 10:07:01.529"));
         List<Transaction> transactionList = List.of(lastTransactionPublished, lastTransactionCreated);
@@ -140,8 +140,8 @@ class BlockchainConnectorInitializerTest {
 
         when(transactionService.getAllTransactions(any())).thenReturn(transactionsFlux);
         when(webClientMock.get()).thenReturn(requestHeadersUriSpecMock);
-        when(requestHeadersUriSpecMock.uri((String) org.mockito.ArgumentMatchers.any())).thenReturn(requestHeadersSpecMock);
-        when(requestHeadersSpecMock.accept((org.springframework.http.MediaType) org.mockito.ArgumentMatchers.any())).thenReturn(requestHeadersSpecMock);
+        when(requestHeadersUriSpecMock.uri((String) any())).thenReturn(requestHeadersSpecMock);
+        when(requestHeadersSpecMock.accept((MediaType) any())).thenReturn(requestHeadersSpecMock);
         when(requestHeadersSpecMock.retrieve()).thenReturn(responseSpecMock);
         String dltNotificationDTOexample = "{\"id\":1,\"publisherAddress\":\"String\",\"eventType\":\"ProductOffering\"," +
                 "\"timestamp\":3,\"dataLocation\":\"http://scorpio:9090/ngsi-ld/v1/entities/urn:ngsi-ld:product-offering:443734333" +
@@ -153,7 +153,7 @@ class BlockchainConnectorInitializerTest {
 
 
         // Then
-        blockchainConnectorInitializer.processAllTransactions();
+        blockchainConnectorRunner.processAllTransactions();
 
         verify(transactionService, times(1)).getAllTransactions(any());
 
@@ -166,24 +166,24 @@ class BlockchainConnectorInitializerTest {
         Transaction lastTransactionPublished = Transaction.builder()
                 .transactionId("e1e07f6d-e8e7-48ae-bb4d-afab5b63c1f5")
                 .createdAt(Timestamp.from(Instant.now()))
-                .dataLocation("https://domain.org/ngsi-ld/v1/entities/urn:ngsi-ld:Entity:1234")
+                .datalocation("https://domain.org/ngsi-ld/v1/entities/urn:ngsi-ld:Entity:1234")
                 .entityId("urn:ngsi-ld:Entity:1234")
                 .entityType("Entity")
                 .entityHash("0x1234")
                 .status(TransactionStatus.PUBLISHED)
                 .trader(TransactionTrader.CONSUMER)
-                .hash("0x9876")
+                .entityHash("0x9876")
                 .build(); // Populate this as needed
         Transaction lastTransactionCreated = Transaction.builder()
                 .transactionId("e1e07f6d-e8e7-48ae-bb4d-afab5b63c1f6")
                 .createdAt(Timestamp.from(Instant.now()))
-                .dataLocation("https://domain.org/ngsi-ld/v1/entities/urn:ngsi-ld:Entity:12345")
+                .datalocation("https://domain.org/ngsi-ld/v1/entities/urn:ngsi-ld:Entity:12345")
                 .entityId("urn:ngsi-ld:Entity:12345")
                 .entityType("Entity")
                 .entityHash("0x1235")
                 .status(TransactionStatus.CREATED)
                 .trader(TransactionTrader.CONSUMER)
-                .hash("0x9876")
+                .entityHash("0x9876")
                 .build();
         lastTransactionPublished.setCreatedAt(Timestamp.valueOf("2024-02-06 10:07:01.529"));
         List<Transaction> transactionList = List.of(lastTransactionPublished, lastTransactionCreated);
@@ -194,8 +194,8 @@ class BlockchainConnectorInitializerTest {
 
         when(transactionService.getAllTransactions(any())).thenReturn(transactionsFlux);
 //        when(webClientMock.get()).thenReturn(requestHeadersUriSpecMock);
-        when(requestHeadersUriSpecMock.uri((String) org.mockito.ArgumentMatchers.any())).thenReturn(requestHeadersSpecMock);
-        when(requestHeadersSpecMock.accept((org.springframework.http.MediaType) org.mockito.ArgumentMatchers.any())).thenReturn
+        when(requestHeadersUriSpecMock.uri((String) any())).thenReturn(requestHeadersSpecMock);
+        when(requestHeadersSpecMock.accept((MediaType) any())).thenReturn
                 (requestHeadersSpecMock);
         when(requestHeadersSpecMock.retrieve()).thenReturn(responseSpecMock);
 
@@ -210,7 +210,7 @@ class BlockchainConnectorInitializerTest {
         when(responseSpecMock.bodyToFlux(String.class)).thenReturn(mockResponse);
 
         // When
-        blockchainConnectorInitializer.processAllTransactions();
+        blockchainConnectorRunner.processAllTransactions();
 
         // Then
         verify(transactionService, times(1)).getAllTransactions(any());
@@ -225,13 +225,13 @@ class BlockchainConnectorInitializerTest {
         when(brokerEntityEventSubscription.isDisposed()).thenReturn(false);
 
         // Asigna las suscripciones simuladas
-        ReflectionTestUtils.setField(blockchainConnectorInitializer, "blockchainEventProcessingSubscription",
+        ReflectionTestUtils.setField(blockchainConnectorRunner, "blockchainEventProcessingSubscription",
                 blockchainEventSubscription);
-        ReflectionTestUtils.setField(blockchainConnectorInitializer, "brokerEntityEventProcessingSubscription",
+        ReflectionTestUtils.setField(blockchainConnectorRunner, "brokerEntityEventProcessingSubscription",
                 brokerEntityEventSubscription);
 
         // Ejecuta cleanUp
-        blockchainConnectorInitializer.cleanUp();
+        blockchainConnectorRunner.cleanUp();
 
         // Verificaciones
         verify(blockchainEventSubscription).dispose();

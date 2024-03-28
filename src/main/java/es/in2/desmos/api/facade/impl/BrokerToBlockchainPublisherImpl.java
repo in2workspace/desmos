@@ -1,6 +1,7 @@
 package es.in2.desmos.api.facade.impl;
 
 import es.in2.desmos.api.facade.BrokerToBlockchainPublisher;
+import es.in2.desmos.api.model.BlockchainEvent;
 import es.in2.desmos.api.model.BrokerNotification;
 import es.in2.desmos.api.service.BlockchainEventCreatorService;
 import es.in2.desmos.api.service.NotificationProcessorService;
@@ -31,13 +32,24 @@ public class BrokerToBlockchainPublisherImpl implements BrokerToBlockchainPublis
         return brokerToBlockchainQueueService.getEventStream()
                 .flatMap(eventQueue -> {
                     String processId = UUID.randomUUID().toString();
+                    log.debug("Processing event with processId: {}", processId);
                     MDC.put("processId", processId);
+                    if (eventQueue.getPriority().name().startsWith("RECOVER")) {
+                        log.debug("Detected event from recover queue, processing...");
+                        return dltAdapterEventPublisher.publishBlockchainEvent(processId, (BlockchainEvent) eventQueue.getEvent().get(0))
+                                .doOnSuccess(voidValue -> log.debug("Blockchain Event Publishing Completed"))
+                                .onErrorResume(error -> {
+                                    log.error("Error in processing, moving to next event");
+                                    return Mono.empty();
+                                });
+                    }
                     return processAndPublishBrokerNotificationToBlockchain(processId, (BrokerNotification) eventQueue.getEvent().get(0))
-                            .doOnSuccess(voidValue -> log.debug("Blockchain Event Published Successfully"));
-                })
-                .onErrorResume(error -> {
-                    log.error("Error processing event: {}", error.getMessage(), error);
-                    return Mono.empty();
+                            .doOnSuccess(voidValue -> log.debug("Blockchain Event Publishing Completed"))
+                            .doOnError(error -> log.error("Error processing event"))
+                            .onErrorResume(error -> {
+                                log.error("Error in processing, moving to next event");
+                                return Mono.empty();
+                            });
                 });
     }
 
@@ -50,7 +62,7 @@ public class BrokerToBlockchainPublisherImpl implements BrokerToBlockchainPublis
                 .flatMap(dataMap -> blockchainEventCreatorService.createBlockchainEvent(processId, dataMap))
                 // Publish the Blockchain Event into the Blockchain Node -> BlockchainEventPublisher
                 .flatMap(blockchainEvent -> dltAdapterEventPublisher.publishBlockchainEvent(processId, blockchainEvent))
-                .doOnSuccess(success -> log.info("Blockchain Event created and published successfully."))
+                .doOnSuccess(success -> log.info("Blockchain Event creation and publication completed."))
                 .doOnError(error -> log.error("Error creating or publishing Blockchain Event: {}", error.getMessage(), error));
     }
 

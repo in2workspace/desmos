@@ -11,44 +11,37 @@ import java.sql.Timestamp;
 import java.util.UUID;
 
 @Getter
-@Setter
 @Builder
-@AllArgsConstructor
-@NoArgsConstructor
-@ToString
-@Table("transactions")
-public class Transaction implements Persistable<UUID> {
+@Table("failed_event_transactions")
+public class FailedEventTransaction implements Persistable<UUID> {
 
     @Id
     @Column("id")
     private UUID id;
 
-    @Column("transaction_id")
-    private String transactionId;
+    @Column("entity_id")
+    private String entityId;
 
     @Column("created_at")
     private Timestamp createdAt;
 
-    @Column("entity_id")
-    private String entityId;
-
     @Column("datalocation")
     private String datalocation;
+
+    @Column("transaction_id")
+    private String transactionId;
 
     @Column("entity_type")
     private String entityType;
 
-    @Column("entity_hash")
-    private String entityHash;
+    @Column("iss")
+    private String organizationId;
 
-    @Column("status")
-    private TransactionStatus status;
+    @Column("previous_entity_hash")
+    private String previousEntityHash;
 
-    @Column("trader")
-    private TransactionTrader trader;
-
-    @Column("hash")
-    private String hash;
+    @Column("priority")
+    private EventQueuePriority priority;
 
     @Transient
     private boolean newTransaction;

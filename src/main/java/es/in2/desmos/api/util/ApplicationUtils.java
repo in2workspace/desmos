@@ -1,9 +1,12 @@
 package es.in2.desmos.api.util;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import es.in2.desmos.api.exception.HashLinkException;
+import es.in2.desmos.api.model.Transaction;
 import lombok.extern.slf4j.Slf4j;
 
 import java.net.MalformedURLException;
+import java.net.URI;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -20,7 +23,6 @@ public class ApplicationUtils {
     public static final String HASH_PREFIX = "0x";
 
     public static final String HASHLINK_PREFIX = "?hl=";
-
     private ApplicationUtils() {
         throw new IllegalStateException("Utility class");
     }
@@ -28,8 +30,36 @@ public class ApplicationUtils {
     public static String calculateSHA256Hash(String data) throws NoSuchAlgorithmException {
         MessageDigest messageDigest = MessageDigest.getInstance(SHA_256_ALGORITHM);
         byte[] hash = messageDigest.digest(data.getBytes(StandardCharsets.UTF_8));
-        String hashString = HexFormat.of().formatHex(hash);
-        return HASH_PREFIX + hashString;
+        return HexFormat.of().formatHex(hash);
+    }
+    public static String calculateIntertwinedHash(String hash1Hex, String hash2Hex) throws NoSuchAlgorithmException {
+        // Convert the hexadecimal strings to byte arrays
+        byte[] hash1 = hexStringToByteArray(hash1Hex);
+        byte[] hash2 = hexStringToByteArray(hash2Hex);
+        // Start the MessageDigest with the first hash and update it with the second hash
+        MessageDigest digest = MessageDigest.getInstance(SHA_256_ALGORITHM);
+        digest.update(hash1);
+        digest.update(hash2);
+        byte[] result = digest.digest();
+        // Convert the result to a hexadecimal string
+        return bytesAHex(result);
+    }
+
+    public static String bytesAHex(byte[] bytes) {
+        StringBuilder hexString = new StringBuilder();
+        for (byte b : bytes) {
+            String hex = Integer.toHexString(0xff & b);
+            if (hex.length() == 1) hexString.append('0');
+            hexString.append(hex);
+        }
+        return hexString.toString();
+    }
+
+    private static byte[] hexStringToByteArray(String s) {
+        if (s.startsWith("0x")) {
+            s = s.substring(2);
+        }
+        return HexFormat.of().parseHex(s);
     }
 
     public static String extractEntityHashFromDataLocation(String dataLocation) {
@@ -56,7 +86,7 @@ public class ApplicationUtils {
 
     public static boolean hasHlParameter(String urlString) {
         try {
-            URL url = new URL(urlString);
+            URL url = URI.create(urlString).toURL();
             Map<String, String> queryParams = splitQuery(url);
             log.debug("Query params: {}", queryParams);
             if (queryParams.containsKey("hl")) {
@@ -65,7 +95,7 @@ public class ApplicationUtils {
             } else {
                 throw new HashLinkException("Query param hl not found");
             }
-        } catch (MalformedURLException e) {
+        } catch (IllegalArgumentException | MalformedURLException e) {
             throw new HashLinkException("Error parsing dataLocation");
         }
     }
